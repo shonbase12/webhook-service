@@ -4,13 +4,17 @@ import java.util.logging.Logger;
 
 public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
-    private static final int MAX_RETRIES = 5;
+    private int maxRetries;
     private static final long INITIAL_BACKOFF = 1000; // 1 second
+
+    public WebhookDispatcher(int maxRetries) {
+        this.maxRetries = maxRetries;
+    }
 
     public void dispatchWebhook(Webhook webhook) {
         CompletableFuture.runAsync(() -> {
             int attempt = 0;
-            while (attempt < MAX_RETRIES) {
+            while (attempt < maxRetries) {
                 try {
                     // Logic to send the webhook
                     sendWebhook(webhook);
