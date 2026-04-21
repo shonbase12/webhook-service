@@ -33,7 +33,7 @@ public class WebhookDispatcher {
 
                 attempt++;
                 long backoffTime = INITIAL_BACKOFF * (1 << (attempt - 1)); // Exponential backoff
-                logger.info("Retrying... Attempt " + attempt + " in " + backoffTime + " ms");
+                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + backoffTime + " ms.");
                 try {
                     TimeUnit.MILLISECONDS.sleep(backoffTime);
                 } catch (InterruptedException ie) {
@@ -41,7 +41,7 @@ public class WebhookDispatcher {
                     logger.severe("Thread interrupted during backoff: " + ie.getMessage());
                 }
             }
-            logger.severe("Max retries reached. Failed to dispatch webhook.");
+            logger.severe("Max retries reached. Failed to dispatch webhook: " + webhook);
         });
     }
 
