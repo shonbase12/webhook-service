@@ -16,6 +16,7 @@ public class WebhookDispatcher {
             int attempt = 0;
             while (attempt < maxRetries) {
                 try {
+                    logger.info("Preparing to dispatch webhook: " + webhook);
                     // Logic to send the webhook
                     sendWebhook(webhook);
                     logger.info("Webhook dispatched successfully.");
@@ -24,6 +25,10 @@ public class WebhookDispatcher {
                     logger.warning("Specific exception occurred: " + e.getMessage());
                 } catch (Exception e) {
                     logger.severe("An error occurred: " + e.getMessage());
+                    logger.severe("Stack trace: ");
+                    for (StackTraceElement element : e.getStackTrace()) {
+                        logger.severe(element.toString());
+                    }
                 }
 
                 attempt++;
