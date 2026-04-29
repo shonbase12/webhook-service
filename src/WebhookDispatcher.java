@@ -2,6 +2,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import java.util.Map;
+import java.util.Random;
 
 public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
@@ -9,7 +11,9 @@ public class WebhookDispatcher {
     private static final long INITIAL_BACKOFF = 1000; // 1 second
     private static final long TIMEOUT = 5000; // 5 seconds timeout for sending webhook
     private Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
+    private Random random = new Random();
 
+    // Constructor with dynamic maxRetries
     public WebhookDispatcher(int maxRetries) {
         this.maxRetries = maxRetries;
     }
@@ -32,8 +36,10 @@ public class WebhookDispatcher {
                     return;
                 } catch (SpecificException e) {
                     logger.warning("Specific exception occurred: " + e.getMessage());
+                } catch (TimeoutException e) {
+                    logger.severe("Timeout occurred while sending webhook: " + e.getMessage());
                 } catch (Exception e) {
-                    logger.severe("An error occurred: " + e.getMessage());
+                    logger.severe("An unexpected error occurred: " + e.getMessage());
                     logger.severe("Stack trace: ");
                     for (StackTraceElement element : e.getStackTrace()) {
                         logger.severe(element.toString());
@@ -42,9 +48,11 @@ public class WebhookDispatcher {
 
                 attempt++;
                 long backoffTime = INITIAL_BACKOFF * (1 << (attempt - 1)); // Exponential backoff
-                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + backoffTime + " ms.");
+                long jitter = random.nextInt(1000); // Adding jitter
+                long totalBackoff = backoffTime + jitter;
+                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + totalBackoff + " ms.");
                 try {
-                    TimeUnit.MILLISECONDS.sleep(backoffTime);
+                    TimeUnit.MILLISECONDS.sleep(totalBackoff);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     logger.severe("Thread interrupted during backoff: " + ie.getMessage());
@@ -54,16 +62,15 @@ public class WebhookDispatcher {
         });
     }
 
-    private void sendWebhookWithTimeout(Webhook webhook) throws SpecificException {
+    private void sendWebhookWithTimeout(Webhook webhook) throws SpecificException, TimeoutException {
         // Logic to send the webhook to the desired endpoint
-        // This should include checking the TIMEOUT limit
         long startTime = System.currentTimeMillis();
         // Simulate sending the webhook (replace with actual logic)
         boolean success = sendToWebhookEndpoint(webhook);
         long elapsedTime = System.currentTimeMillis() - startTime;
 
         if (!success || elapsedTime > TIMEOUT) {
-            throw new SpecificException("Failed to send webhook or timeout exceeded.");
+            throw new TimeoutException("Failed to send webhook or timeout exceeded.");
         }
     }
 
@@ -71,47 +78,5 @@ public class WebhookDispatcher {
         // Placeholder for actual sending logic
         // Implement the logic to send the webhook to your endpoint
         return true; // Simulate successful sending
-    }
-
-    public void dispatchNewWebhook(NewWebhook newWebhook, String idempotencyKey) {
-        // Logic for dispatching the new webhook
-        if (idempotencyStore.containsKey(idempotencyKey)) {
-            logger.info("New webhook with idempotency key " + idempotencyKey + " has already been processed.");
-            return;
-        }
-
-        // Similar dispatch logic as dispatchWebhook
-        CompletableFuture.runAsync(() -> {
-            int attempt = 0;
-            while (attempt < maxRetries) {
-                try {
-                    logger.info("Preparing to dispatch new webhook: " + newWebhook);
-                    // Logic to send the new webhook with timeout
-                    sendWebhookWithTimeout(newWebhook);
-                    logger.info("New webhook dispatched successfully.");
-                    idempotencyStore.put(idempotencyKey, "sent");
-                    return;
-                } catch (SpecificException e) {
-                    logger.warning("Specific exception occurred: " + e.getMessage());
-                } catch (Exception e) {
-                    logger.severe("An error occurred: " + e.getMessage());
-                    logger.severe("Stack trace: ");
-                    for (StackTraceElement element : e.getStackTrace()) {
-                        logger.severe(element.toString());
-                    }
-                }
-
-                attempt++;
-                long backoffTime = INITIAL_BACKOFF * (1 << (attempt - 1)); // Exponential backoff
-                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + backoffTime + " ms.");
-                try {
-                    TimeUnit.MILLISECONDS.sleep(backoffTime);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    logger.severe("Thread interrupted during backoff: " + ie.getMessage());
-                }
-            }
-            logger.severe("Max retries reached. Failed to dispatch new webhook: " + newWebhook);
-        });
     }
 }
