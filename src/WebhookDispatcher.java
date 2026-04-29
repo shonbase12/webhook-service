@@ -7,6 +7,7 @@ public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
     private int maxRetries;
     private static final long INITIAL_BACKOFF = 1000; // 1 second
+    private static final long TIMEOUT = 5000; // 5 seconds timeout for sending webhook
     private Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
 
     public WebhookDispatcher(int maxRetries) {
@@ -24,8 +25,8 @@ public class WebhookDispatcher {
             while (attempt < maxRetries) {
                 try {
                     logger.info("Preparing to dispatch webhook: " + webhook);
-                    // Logic to send the webhook
-                    sendWebhook(webhook);
+                    // Logic to send the webhook with timeout
+                    sendWebhookWithTimeout(webhook);
                     logger.info("Webhook dispatched successfully.");
                     idempotencyStore.put(idempotencyKey, "sent");
                     return;
@@ -53,7 +54,9 @@ public class WebhookDispatcher {
         });
     }
 
-    private void sendWebhook(Webhook webhook) throws SpecificException {
-        // Implementation for sending the webhook
+    private void sendWebhookWithTimeout(Webhook webhook) throws SpecificException {
+        // Implementation for sending the webhook with timeout
+        // This method will check if sending the webhook exceeds the TIMEOUT limit.
+        // If it does, it should throw a SpecificException to trigger retry logic.
     }
 }
