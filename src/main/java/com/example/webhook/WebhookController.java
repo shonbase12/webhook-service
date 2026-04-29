@@ -23,4 +23,11 @@ public class WebhookController {
         // Logic to return the status of webhook processing (to be implemented).
         return ResponseEntity.ok("Webhook service is running.");
     }
+
+    @PostMapping("/new")
+    public ResponseEntity<String> registerNewWebhook(@RequestBody NewWebhook newWebhook, @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        // Handle the new webhook registration logic here
+        webhookDispatcher.dispatchNewWebhook(newWebhook, idempotencyKey);
+        return ResponseEntity.status(HttpStatus.CREATED).body("New webhook registered successfully.");
+    }
 }
