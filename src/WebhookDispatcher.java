@@ -1,17 +1,24 @@
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
     private int maxRetries;
     private static final long INITIAL_BACKOFF = 1000; // 1 second
+    private Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
 
     public WebhookDispatcher(int maxRetries) {
         this.maxRetries = maxRetries;
     }
 
-    public void dispatchWebhook(Webhook webhook) {
+    public void dispatchWebhook(Webhook webhook, String idempotencyKey) {
+        if (idempotencyStore.containsKey(idempotencyKey)) {
+            logger.info("Webhook with idempotency key " + idempotencyKey + " has already been processed.");
+            return;
+        }
+
         CompletableFuture.runAsync(() -> {
             int attempt = 0;
             while (attempt < maxRetries) {
@@ -20,6 +27,7 @@ public class WebhookDispatcher {
                     // Logic to send the webhook
                     sendWebhook(webhook);
                     logger.info("Webhook dispatched successfully.");
+                    idempotencyStore.put(idempotencyKey, "sent");
                     return;
                 } catch (SpecificException e) {
                     logger.warning("Specific exception occurred: " + e.getMessage());
