@@ -5,20 +5,28 @@ import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
- * Utility class to perform retry operations with configurable exponential backoff and jitter.
+ * Interface for backoff strategy.
+ */
+interface BackoffStrategy {
+    long computeBackoffMillis(int attempt);
+}
+
+/**
+ * Utility class to perform retry operations with configurable backoff strategy and enhanced exception handling.
  */
 public class RetryUtility {
 
     private static final Logger logger = Logger.getLogger(RetryUtility.class.getName());
 
-    private final long initialBackoffMillis;
-    private final long maxBackoffMillis;
-    private final int maxRetryAttempts;
+    private volatile long initialBackoffMillis;
+    private volatile long maxBackoffMillis;
+    private volatile int maxRetryAttempts;
     private final Random random;
     private final Predicate<Exception> retryCondition;
+    private BackoffStrategy backoffStrategy;
 
     /**
-     * Constructor for RetryUtility.
+     * Constructor for RetryUtility with default exponential backoff strategy with jitter.
      * 
      * @param initialBackoffMillis initial backoff in milliseconds
      * @param maxBackoffMillis maximum backoff in milliseconds
@@ -31,6 +39,27 @@ public class RetryUtility {
         this.maxRetryAttempts = maxRetryAttempts;
         this.random = new Random();
         this.retryCondition = retryCondition;
+        this.backoffStrategy = this::defaultBackoffStrategy;
+    }
+
+    /**
+     * Set a custom backoff strategy.
+     * 
+     * @param strategy new backoff strategy
+     */
+    public void setBackoffStrategy(BackoffStrategy strategy) {
+        if (strategy != null) {
+            this.backoffStrategy = strategy;
+        }
+    }
+
+    /**
+     * Update retry configuration at runtime.
+     */
+    public void updateRetryConfig(long initialBackoffMillis, long maxBackoffMillis, int maxRetryAttempts) {
+        this.initialBackoffMillis = initialBackoffMillis;
+        this.maxBackoffMillis = maxBackoffMillis;
+        this.maxRetryAttempts = maxRetryAttempts;
     }
 
     /**
@@ -47,15 +76,22 @@ public class RetryUtility {
                 return operation.get();
             } catch (Exception e) {
                 if (!retryCondition.test(e)) {
-                    logger.warning("Exception not retryable: " + e.getMessage());
+                    logger.warning("Exception not retryable: " + e.toString());
                     throw e; // Non-retryable exception, propagate
                 }
-                logger.warning("Attempt " + attempt + " failed with exception: " + e.getMessage());
+                logger.warning("Attempt " + attempt + " failed with exception: " + e.toString());
+                logger.fine(() -> {
+                    StringBuilder sb = new StringBuilder();
+                    for (StackTraceElement el : e.getStackTrace()) {
+                        sb.append(el.toString()).append("\n");
+                    }
+                    return sb.toString();
+                });
                 if (attempt == maxRetryAttempts) {
                     logger.severe("Max retry attempts reached. Giving up.");
                     throw e;
                 }
-                long backoffMillis = calculateBackoffWithJitter(attempt);
+                long backoffMillis = backoffStrategy.computeBackoffMillis(attempt);
                 logger.info("Backing off for " + backoffMillis + " ms before next retry.");
                 try {
                     TimeUnit.MILLISECONDS.sleep(backoffMillis);
@@ -69,7 +105,7 @@ public class RetryUtility {
         throw new IllegalStateException("Unreachable code reached in retry logic");
     }
 
-    private long calculateBackoffWithJitter(int attempt) {
+    private long defaultBackoffStrategy(int attempt) {
         long expBackoff = initialBackoffMillis * (1L << (attempt - 1));
         long cappedBackoff = Math.min(expBackoff, maxBackoffMillis);
         return (long) (random.nextDouble() * cappedBackoff);
