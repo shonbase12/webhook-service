@@ -18,9 +18,9 @@ public class RetryUtility {
 
     private static final Logger logger = Logger.getLogger(RetryUtility.class.getName());
 
-    private volatile long initialBackoffMillis;
-    private volatile long maxBackoffMillis;
-    private volatile int maxRetryAttempts;
+    private volatile long initialBackoffMillis = 500; // Updated default initial backoff
+    private volatile long maxBackoffMillis = 8000; // Updated default max backoff
+    private volatile int maxRetryAttempts = 5; // Updated default max retry attempts
     private final Random random;
     private final Predicate<Exception> retryCondition;
     private BackoffStrategy backoffStrategy;
