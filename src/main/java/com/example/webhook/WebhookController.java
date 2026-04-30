@@ -98,4 +98,16 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to update webhook.");
         }
     }
+
+    @PostMapping("/handle-new-event")
+    public ResponseEntity<String> handleNewWebhookEvent(@RequestBody NewWebhookEvent newEvent) {
+        try {
+            // Delegate processing to the webhookDispatcher
+            webhookDispatcher.dispatchNewWebhookEvent(newEvent);
+            return ResponseEntity.status(HttpStatus.CREATED).body("New webhook event handled successfully.");
+        } catch (Exception e) {
+            // Log the exception (logging code not shown here)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to handle new webhook event.");
+        }
+    }
 }
