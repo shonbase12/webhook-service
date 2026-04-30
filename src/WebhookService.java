@@ -16,24 +16,28 @@ public class WebhookService {
     private final long initialBackoffMillis;
     private final long maxBackoffMillis;
     private final int maxRetryAttempts;
+    private final long idempotencyKeyTTL;
 
     private final RetryUtility retryUtility;
 
     public WebhookService() {
-        this(1000, 30000, 3); // default retry config
+        this(1000, 30000, 3, 3600000); // default retry config and 1 hour TTL
     }
 
-    public WebhookService(long initialBackoffMillis, long maxBackoffMillis, int maxRetryAttempts) {
-        this.webhookDispatcher = new WebhookDispatcher(maxRetryAttempts);
+    public WebhookService(long initialBackoffMillis, long maxBackoffMillis, int maxRetryAttempts, long idempotencyKeyTTL) {
         this.initialBackoffMillis = initialBackoffMillis;
         this.maxBackoffMillis = maxBackoffMillis;
         this.maxRetryAttempts = maxRetryAttempts;
+        this.idempotencyKeyTTL = idempotencyKeyTTL;
+
+        WebhookDispatcher.BackoffStrategy backoffStrategy = new WebhookDispatcher.ExponentialBackoffWithJitter(initialBackoffMillis, maxBackoffMillis);
 
         // Define retry condition to retry only on specific exceptions
         Predicate<Exception> retryCondition = e -> {
-            // Example: retry on WebhookTimeoutException or generic transient exceptions
-            return e instanceof WebhookTimeoutException || e instanceof TransientWebhookException;
+            return e instanceof WebhookDispatcher.TimeoutException || e instanceof WebhookDispatcher.SpecificException;
         };
+
+        this.webhookDispatcher = new WebhookDispatcher(maxRetryAttempts, idempotencyKeyTTL, backoffStrategy, retryCondition);
 
         this.retryUtility = new RetryUtility(initialBackoffMillis, maxBackoffMillis, maxRetryAttempts, retryCondition);
     }
@@ -61,7 +65,6 @@ public class WebhookService {
             webhookDispatcher.dispatchWebhook(webhook, event.toString());
         } catch (Exception e) {
             logger.severe("Failed to dispatch webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
-            // Optionally rethrow or handle retry externally
             throw e;
         }
     }
@@ -80,8 +83,6 @@ public class WebhookService {
             });
         } catch (Exception e) {
             logger.severe("Retry attempts exhausted for webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
-            // Implement fallback or alerting here if needed
-            // For example, send alert or persist failure
         }
     }
 
@@ -102,7 +103,6 @@ public class WebhookService {
                 webhookDispatcher.dispatchWebhook(webhook, idempotencyKey);
             } catch (Exception e) {
                 logger.severe("Failed to asynchronously dispatch new webhook. Error: " + e.getMessage());
-                // Consider alerting or retrying here
             }
         });
     }
