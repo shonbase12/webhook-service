@@ -1,6 +1,14 @@
+import java.util.logging.Logger;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
+
 public class WebhookService {
 
+    private static final Logger logger = Logger.getLogger(WebhookService.class.getName());
     private final WebhookDispatcher webhookDispatcher;
+    private final Random random = new Random();
+    private static final long INITIAL_BACKOFF = 1000; // 1 second
+    private static final long MAX_BACKOFF = 30000; // 30 seconds max backoff
 
     public WebhookService() {
         // Initialize WebhookDispatcher with a default maxRetries value, e.g., 3
@@ -13,7 +21,7 @@ public class WebhookService {
      */
     public void registerWebhook(Object webhook) {
         // Implement registration logic here
-        log("Registering webhook: " + webhook);
+        logger.info("Registering webhook: " + webhook);
         // Possibly store the webhook in a data store
     }
 
@@ -23,22 +31,37 @@ public class WebhookService {
      * @param event the event data
      */
     public void dispatchWebhook(Object webhook, Object event) {
-        log("Dispatching webhook: " + webhook + " with event: " + event);
+        logger.info("Dispatching webhook: " + webhook + " with event: " + event);
         // Use WebhookDispatcher to dispatch
         webhookDispatcher.dispatchWebhook((Webhook) webhook, event.toString());
     }
 
     /**
-     * Retry the webhook dispatch in case of failure.
+     * Retry the webhook dispatch in case of failure with exponential backoff and jitter.
      * @param webhook the webhook to retry
      * @param event the event data
      * @param retryCount number of retry attempts
      */
     public void retryWebhook(Object webhook, Object event, int retryCount) {
-        log("Retrying webhook dispatch: " + webhook + " attempt: " + retryCount);
-        // Implement retry logic, possibly by re-dispatching
-        for (int i = 0; i < retryCount; i++) {
+        logger.info("Retrying webhook dispatch: " + webhook + " attempt: " + retryCount);
+
+        for (int attempt = 1; attempt <= retryCount; attempt++) {
             webhookDispatcher.dispatchWebhook((Webhook) webhook, event.toString());
+
+            // Exponential backoff with full jitter
+            long expBackoff = INITIAL_BACKOFF * (1L << (attempt - 1));
+            long cappedBackoff = Math.min(expBackoff, MAX_BACKOFF);
+            long jitter = (long) (random.nextDouble() * cappedBackoff);
+
+            logger.info("Backoff for " + jitter + " ms before next retry.");
+
+            try {
+                TimeUnit.MILLISECONDS.sleep(jitter);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.severe("Thread interrupted during backoff: " + e.getMessage());
+                break;
+            }
         }
     }
 
@@ -48,7 +71,7 @@ public class WebhookService {
      * @param idempotencyKey the idempotency key for the webhook
      */
     public void dispatchNewWebhook(NewWebhook newWebhook, String idempotencyKey) {
-        log("Dispatching new webhook: " + newWebhook);
+        logger.info("Dispatching new webhook: " + newWebhook);
         // Assuming NewWebhook can be converted to Webhook for dispatching
         Webhook webhook = convertNewWebhookToWebhook(newWebhook);
         webhookDispatcher.dispatchWebhook(webhook, idempotencyKey);
@@ -63,14 +86,6 @@ public class WebhookService {
         // Implement conversion logic here
         // Placeholder implementation
         return new Webhook(newWebhook.getPayload());
-    }
-
-    /**
-     * Log webhook operations and events.
-     * @param message the log message
-     */
-    public void log(String message) {
-        System.out.println("WebhookService log: " + message);
     }
 
 }
