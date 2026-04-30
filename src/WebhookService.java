@@ -62,6 +62,7 @@ public class WebhookService {
         } catch (Exception e) {
             logger.severe("Failed to dispatch webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
             // Optionally rethrow or handle retry externally
+            throw e;
         }
     }
 
@@ -80,6 +81,7 @@ public class WebhookService {
         } catch (Exception e) {
             logger.severe("Retry attempts exhausted for webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
             // Implement fallback or alerting here if needed
+            // For example, send alert or persist failure
         }
     }
 
@@ -100,6 +102,7 @@ public class WebhookService {
                 webhookDispatcher.dispatchWebhook(webhook, idempotencyKey);
             } catch (Exception e) {
                 logger.severe("Failed to asynchronously dispatch new webhook. Error: " + e.getMessage());
+                // Consider alerting or retrying here
             }
         });
     }
