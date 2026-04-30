@@ -1,7 +1,11 @@
 <configuration>
     <!-- Console appender with LogstashEncoder -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"appname":"webhook-service"}</customFields>
+            <includeMdc>true</includeMdc>
+            <includeCallerData>true</includeCallerData>
+        </encoder>
     </appender>
 
     <!-- File appender with rolling policy -->
@@ -11,7 +15,11 @@
             <fileNamePattern>logs/application.%d{yyyy-MM-dd}.log</fileNamePattern>
             <maxHistory>30</maxHistory>
         </rollingPolicy>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"appname":"webhook-service"}</customFields>
+            <includeMdc>true</includeMdc>
+            <includeCallerData>true</includeCallerData>
+        </encoder>
     </appender>
 
     <!-- Async appenders -->
@@ -25,7 +33,11 @@
     <!-- Centralized log management appender (example for Logstash TCP) -->
     <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
         <destination>logstash-host:5000</destination>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"appname":"webhook-service"}</customFields>
+            <includeMdc>true</includeMdc>
+            <includeCallerData>true</includeCallerData>
+        </encoder>
         <includeCallerData>true</includeCallerData>
     </appender>
 
