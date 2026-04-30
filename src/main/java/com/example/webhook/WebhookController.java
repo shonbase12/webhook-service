@@ -87,4 +87,13 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to handle specific webhook action.");
         }
     }
+
+    @PostMapping("/new-feature")
+    public ResponseEntity<String> handleNewFeatureWebhook(@RequestBody Map<String, Object> eventDetails) {
+        // Process the incoming event details as needed
+        // For example, you could dispatch this to a service or log it
+
+        // Return a confirmation response
+        return ResponseEntity.ok("New feature webhook event received successfully.");
+    }
 }
