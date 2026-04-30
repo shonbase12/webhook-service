@@ -4,6 +4,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.concurrent.CompletableFuture;
 
 public class WebhookService {
 
@@ -17,8 +18,6 @@ public class WebhookService {
     private final long maxBackoffMillis;
     private final int maxRetryAttempts;
     private final long idempotencyKeyTTL;
-
-    private final RetryUtility retryUtility;
 
     public WebhookService() {
         this(1000, 30000, 3, 3600000); // default retry config and 1 hour TTL
@@ -38,8 +37,6 @@ public class WebhookService {
         };
 
         this.webhookDispatcher = new WebhookDispatcher(maxRetryAttempts, idempotencyKeyTTL, backoffStrategy, retryCondition);
-
-        this.retryUtility = new RetryUtility(initialBackoffMillis, maxBackoffMillis, maxRetryAttempts, retryCondition);
     }
 
     public void registerWebhook(Webhook webhook) {
@@ -51,39 +48,26 @@ public class WebhookService {
         logger.info("Registered webhook with ID: " + webhook.getId());
     }
 
-    public void dispatchWebhook(Webhook webhook, Object event) {
+    // Centralized async dispatch with retries handled inside WebhookDispatcher
+    public CompletableFuture<Void> dispatchWebhookAsync(Webhook webhook, Object event) {
         if (webhook == null) {
             logger.warning("Attempted to dispatch a null webhook.");
-            return;
+            return CompletableFuture.completedFuture(null);
         }
         if (!registeredWebhooks.containsKey(webhook.getId())) {
             logger.warning("Webhook with ID " + webhook.getId() + " is not registered.");
-            return;
+            return CompletableFuture.completedFuture(null);
         }
-        try {
-            logger.info("Dispatching webhook ID: " + webhook.getId() + " with event: " + event);
-            webhookDispatcher.dispatchWebhook(webhook, event.toString());
-        } catch (Exception e) {
-            logger.severe("Failed to dispatch webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
-            throw e;
-        }
-    }
 
-    public void retryWebhook(Webhook webhook, Object event) {
-        if (webhook == null) {
-            logger.warning("Attempted to retry a null webhook.");
-            return;
-        }
-        logger.info("Retrying webhook dispatch ID: " + webhook.getId());
-        try {
-            retryUtility.executeWithRetry(() -> {
-                webhookDispatcher.dispatchWebhook(webhook, event.toString());
+        logger.info("Asynchronously dispatching webhook ID: " + webhook.getId() + " with event: " + event);
+        return CompletableFuture.runAsync(() -> {
+            try {
+                webhookDispatcher.dispatchWithRetry(webhook, event.toString());
                 logger.info("Successfully dispatched webhook ID: " + webhook.getId());
-                return null; // Supplier requires a return value
-            });
-        } catch (Exception e) {
-            logger.severe("Retry attempts exhausted for webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
-        }
+            } catch (Exception e) {
+                logger.severe("Failed to dispatch webhook ID: " + webhook.getId() + ". Error: " + e.getMessage());
+            }
+        }, executorService);
     }
 
     public void dispatchNewWebhook(NewWebhook newWebhook, String idempotencyKey) {
@@ -100,7 +84,7 @@ public class WebhookService {
             try {
                 Webhook webhook = convertNewWebhookToWebhook(newWebhook);
                 registerWebhook(webhook);
-                webhookDispatcher.dispatchWebhook(webhook, idempotencyKey);
+                webhookDispatcher.dispatchWithRetry(webhook, idempotencyKey);
             } catch (Exception e) {
                 logger.severe("Failed to asynchronously dispatch new webhook. Error: " + e.getMessage());
             }
