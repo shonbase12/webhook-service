@@ -76,4 +76,32 @@ public class WebhookDispatcherTest {
         verify(dispatcher, times(3)).sendWebhook(webhook);
         // Here you can add additional assertions for logging or handling failure
     }
+
+    // New tests for network-related failures
+
+    @Test
+    public void testDispatchWebhook_NetworkTimeout() {
+        WebhookDispatcher dispatcher = new WebhookDispatcher(3);
+        Webhook webhook = new Webhook();
+
+        // Simulate network timeout exception
+        doThrow(new NetworkTimeoutException("Network timeout occurred")).when(dispatcher).sendWebhook(webhook);
+
+        dispatcher.dispatchWebhook(webhook);
+
+        verify(dispatcher, times(3)).sendWebhook(webhook);
+    }
+
+    @Test
+    public void testDispatchWebhook_ConnectionReset() {
+        WebhookDispatcher dispatcher = new WebhookDispatcher(3);
+        Webhook webhook = new Webhook();
+
+        // Simulate connection reset exception
+        doThrow(new ConnectionResetException("Connection reset by peer")).when(dispatcher).sendWebhook(webhook);
+
+        dispatcher.dispatchWebhook(webhook);
+
+        verify(dispatcher, times(3)).sendWebhook(webhook);
+    }
 }
