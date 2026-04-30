@@ -6,6 +6,7 @@ import org.mockito.stubbing.Answer;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -45,7 +46,6 @@ public class WebhookServiceTest {
     @Test
     public void testRegisterWebhook_NullWebhook() {
         webhookService.registerWebhook(null); // Should not throw
-        // No direct output, check logs if possible or just ensure no exception
     }
 
     @Test
@@ -80,32 +80,30 @@ public class WebhookServiceTest {
     }
 
     @Test
-    public void testRetryWebhook_NullWebhook() {
-        webhookService.retryWebhook(null, "event", 3); // Should not throw
-    }
-
-    @Test
-    public void testRetryWebhook_SuccessfulDispatchStopsRetries() {
+    public void testDispatchWebhookAsync_SuccessfulDispatch() throws Exception {
         Webhook webhook = new Webhook("payload");
         webhookService.registerWebhook(webhook);
 
-        doNothing().when(mockDispatcher).dispatchWebhook(webhook, "event");
+        doNothing().when(mockDispatcher).dispatchWithRetry(webhook, "event");
 
-        webhookService.retryWebhook(webhook, "event", 3);
+        CompletableFuture<Void> future = webhookService.dispatchWebhookAsync(webhook, "event");
+        future.get(); // wait for completion
 
-        verify(mockDispatcher, atLeastOnce()).dispatchWebhook(webhook, "event");
+        verify(mockDispatcher, times(1)).dispatchWithRetry(webhook, "event");
     }
 
     @Test
-    public void testRetryWebhook_MaxRetriesReached() {
+    public void testDispatchWebhookAsync_NullWebhook() throws Exception {
+        CompletableFuture<Void> future = webhookService.dispatchWebhookAsync(null, "event");
+        future.get(); // should complete normally
+    }
+
+    @Test
+    public void testDispatchWebhookAsync_UnregisteredWebhook() throws Exception {
         Webhook webhook = new Webhook("payload");
-        webhookService.registerWebhook(webhook);
-
-        doThrow(new RuntimeException("fail")).when(mockDispatcher).dispatchWebhook(webhook, "event");
-
-        webhookService.retryWebhook(webhook, "event", 3);
-
-        verify(mockDispatcher, times(3)).dispatchWebhook(webhook, "event");
+        CompletableFuture<Void> future = webhookService.dispatchWebhookAsync(webhook, "event");
+        future.get();
+        verify(mockDispatcher, never()).dispatchWithRetry(any(), any());
     }
 
     @Test
@@ -126,13 +124,15 @@ public class WebhookServiceTest {
         when(newWebhook.getPayload()).thenReturn("payload");
         when(newWebhook.getId()).thenReturn("id123");
 
+        doNothing().when(mockDispatcher).dispatchWithRetry(any(Webhook.class), eq("key"));
+
         webhookService.dispatchNewWebhook(newWebhook, "key");
 
         // Wait for async task to complete
         Thread.sleep(500);
 
         ArgumentCaptor<Webhook> captor = ArgumentCaptor.forClass(Webhook.class);
-        verify(mockDispatcher, times(1)).dispatchWebhook(captor.capture(), eq("key"));
+        verify(mockDispatcher, times(1)).dispatchWithRetry(captor.capture(), eq("key"));
         assertEquals("payload", captor.getValue().getPayload());
     }
 
