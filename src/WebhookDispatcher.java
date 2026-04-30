@@ -9,6 +9,7 @@ public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
     private int maxRetries;
     private static final long INITIAL_BACKOFF = 1000; // 1 second
+    private static final long MAX_BACKOFF = 30000; // 30 seconds max backoff
     private static final long TIMEOUT = 5000; // 5 seconds timeout for sending webhook
     private Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
     private Random random = new Random();
@@ -47,12 +48,16 @@ public class WebhookDispatcher {
                 }
 
                 attempt++;
-                long backoffTime = INITIAL_BACKOFF * (1 << (attempt - 1)); // Exponential backoff
-                long jitter = random.nextInt(1000); // Adding jitter
-                long totalBackoff = backoffTime + jitter;
-                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + totalBackoff + " ms.");
+
+                // Improved exponential backoff with full jitter
+                long expBackoff = INITIAL_BACKOFF * (1L << (attempt - 1));
+                long cappedBackoff = Math.min(expBackoff, MAX_BACKOFF);
+                long jitter = (long) (random.nextDouble() * cappedBackoff);
+
+                logger.info("Retrying dispatch... Attempt " + attempt + " of " + maxRetries + " in " + jitter + " ms.");
+
                 try {
-                    TimeUnit.MILLISECONDS.sleep(totalBackoff);
+                    TimeUnit.MILLISECONDS.sleep(jitter);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     logger.severe("Thread interrupted during backoff: " + ie.getMessage());
