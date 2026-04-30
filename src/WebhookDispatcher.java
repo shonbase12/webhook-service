@@ -74,7 +74,28 @@ public class WebhookDispatcher {
         }
     }
 
+    private boolean validateWebhook(Webhook webhook) {
+        // Implement enhanced webhook validation logic here
+        // For example, checking required fields, signature verification, or payload schema validation
+        if (webhook == null) {
+            logger.warning("Webhook is null.");
+            return false;
+        }
+        if (webhook.getPayload() == null || webhook.getPayload().isEmpty()) {
+            logger.warning("Webhook payload is empty.");
+            return false;
+        }
+        // Add more validation rules as needed
+        return true;
+    }
+
     private boolean sendToWebhookEndpoint(Webhook webhook) {
+        // Enhanced webhook validation
+        if (!validateWebhook(webhook)) {
+            logger.severe("Webhook validation failed. Aborting send.");
+            return false;
+        }
+
         // Placeholder for actual sending logic
         // Implement the logic to send the webhook to your endpoint
         return true; // Simulate successful sending
