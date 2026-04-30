@@ -1,6 +1,5 @@
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -24,13 +23,38 @@ public class RetryUtility {
     private volatile long initialBackoffMillis = 500; // Updated default initial backoff
     private volatile long maxBackoffMillis = 8000; // Updated default max backoff
     private volatile int maxRetryAttempts = 5; // Updated default max retry attempts
+    private volatile long maxElapsedTimeMillis = -1; // Optional max elapsed time limit, -1 means unlimited
     private final Random random;
     private final Predicate<Exception> retryCondition;
     private BackoffStrategy backoffStrategy;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
     // Callbacks for metrics and observability
     private Consumer<Integer> onRetryAttempt;
     private Consumer<Exception> onRetryFailure;
+
+    /**
+     * Common retry conditions for typical transient exceptions
+     */
+    public static class RetryConditions {
+        public static Predicate<Exception> alwaysRetry() {
+            return e -> true;
+        }
+
+        public static Predicate<Exception> retryOnNetworkErrors() {
+            return e -> e instanceof java.io.IOException || e instanceof java.net.SocketTimeoutException;
+        }
+
+        public static Predicate<Exception> retryOnHttp5xx() {
+            return e -> {
+                if (e instanceof HttpStatusException) {
+                    int statusCode = ((HttpStatusException) e).getStatusCode();
+                    return statusCode >= 500 && statusCode < 600;
+                }
+                return false;
+            };
+        }
+    }
 
     /**
      * Constructor for RetryUtility with default exponential backoff strategy with jitter.
@@ -70,6 +94,14 @@ public class RetryUtility {
     }
 
     /**
+     * Set optional max elapsed time for retries. Negative value disables.
+     * @param maxElapsedTimeMillis max elapsed time in milliseconds
+     */
+    public void setMaxElapsedTimeMillis(long maxElapsedTimeMillis) {
+        this.maxElapsedTimeMillis = maxElapsedTimeMillis;
+    }
+
+    /**
      * Set callback for retry attempt metric.
      * @param onRetryAttempt consumer accepting current attempt number
      */
@@ -94,6 +126,7 @@ public class RetryUtility {
      * @throws Exception if all retries fail
      */
     public <T> T executeWithRetry(Supplier<T> operation) throws Exception {
+        long startTime = System.currentTimeMillis();
         for (int attempt = 1; attempt <= maxRetryAttempts; attempt++) {
             try {
                 return operation.get();
@@ -101,6 +134,14 @@ public class RetryUtility {
                 if (!retryCondition.test(e)) {
                     logger.warning("Exception not retryable: " + e.toString());
                     throw e; // Non-retryable exception, propagate
+                }
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (maxElapsedTimeMillis >= 0 && elapsedTime > maxElapsedTimeMillis) {
+                    logger.severe("Max elapsed retry time exceeded. Giving up.");
+                    if (onRetryFailure != null) {
+                        onRetryFailure.accept(e);
+                    }
+                    throw e;
                 }
                 logger.warning("Attempt " + attempt + " failed with exception: " + e.toString());
                 logger.fine(() -> {
@@ -143,11 +184,12 @@ public class RetryUtility {
      */
     public <T> CompletableFuture<T> executeWithRetryAsync(Supplier<CompletableFuture<T>> asyncOperation) {
         CompletableFuture<T> resultFuture = new CompletableFuture<>();
-        executeAsyncHelper(asyncOperation, 1, resultFuture);
+        long startTime = System.currentTimeMillis();
+        executeAsyncHelper(asyncOperation, 1, resultFuture, startTime);
         return resultFuture;
     }
 
-    private <T> void executeAsyncHelper(Supplier<CompletableFuture<T>> asyncOperation, int attempt, CompletableFuture<T> resultFuture) {
+    private <T> void executeAsyncHelper(Supplier<CompletableFuture<T>> asyncOperation, int attempt, CompletableFuture<T> resultFuture, long startTime) {
         asyncOperation.get().whenComplete((result, throwable) -> {
             if (throwable == null) {
                 resultFuture.complete(result);
@@ -155,6 +197,15 @@ public class RetryUtility {
                 Throwable cause = throwable instanceof java.util.concurrent.CompletionException ? throwable.getCause() : throwable;
                 if (!(cause instanceof Exception) || !retryCondition.test((Exception) cause)) {
                     logger.warning("Exception not retryable: " + cause.toString());
+                    resultFuture.completeExceptionally(cause);
+                    return;
+                }
+                long elapsedTime = System.currentTimeMillis() - startTime;
+                if (maxElapsedTimeMillis >= 0 && elapsedTime > maxElapsedTimeMillis) {
+                    logger.severe("Max elapsed retry time exceeded. Giving up.");
+                    if (onRetryFailure != null) {
+                        onRetryFailure.accept((Exception) cause);
+                    }
                     resultFuture.completeExceptionally(cause);
                     return;
                 }
@@ -179,15 +230,7 @@ public class RetryUtility {
                 }
                 long backoffMillis = backoffStrategy.computeBackoffMillis(attempt);
                 logger.info("Backing off for " + backoffMillis + " ms before next retry.");
-                try {
-                    TimeUnit.MILLISECONDS.sleep(backoffMillis);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    logger.severe("Thread interrupted during backoff. Aborting retries.");
-                    resultFuture.completeExceptionally(ie);
-                    return;
-                }
-                executeAsyncHelper(asyncOperation, attempt + 1, resultFuture);
+                scheduler.schedule(() -> executeAsyncHelper(asyncOperation, attempt + 1, resultFuture, startTime), backoffMillis, TimeUnit.MILLISECONDS);
             }
         });
     }
@@ -196,6 +239,20 @@ public class RetryUtility {
         long expBackoff = initialBackoffMillis * (1L << (attempt - 1));
         long cappedBackoff = Math.min(expBackoff, maxBackoffMillis);
         return (long) (random.nextDouble() * cappedBackoff);
+    }
+
+    // Hypothetical HttpStatusException class to demonstrate retry condition on HTTP 5xx
+    public static class HttpStatusException extends Exception {
+        private final int statusCode;
+
+        public HttpStatusException(int statusCode, String message) {
+            super(message);
+            this.statusCode = statusCode;
+        }
+
+        public int getStatusCode() {
+            return statusCode;
+        }
     }
 
 }
