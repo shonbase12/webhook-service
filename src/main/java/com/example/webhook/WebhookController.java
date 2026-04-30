@@ -69,4 +69,12 @@ public class WebhookController {
         // Return a success response
         return ResponseEntity.ok("Webhook event processed successfully.");
     }
+
+    @PostMapping("/specific-action")
+    public ResponseEntity<String> handleSpecificWebhookAction(@RequestBody SpecificWebhookEvent specificEvent) {
+        // Add logic to handle the specific webhook action
+        webhookDispatcher.dispatchSpecificWebhookEvent(specificEvent);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body("Specific webhook action handled successfully.");
+    }
 }
