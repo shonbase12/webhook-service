@@ -20,7 +20,7 @@ public class WebhookService {
     private final long idempotencyKeyTTL;
 
     public WebhookService() {
-        this(1000, 30000, 3, 3600000); // default retry config and 1 hour TTL
+        this(2000, 60000, 5, 3600000); // updated retry config and 1 hour TTL
     }
 
     public WebhookService(long initialBackoffMillis, long maxBackoffMillis, int maxRetryAttempts, long idempotencyKeyTTL) {
