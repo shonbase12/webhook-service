@@ -29,5 +29,11 @@ This service handles webhook dispatching with optimizations to reduce latency an
 - Adjust retry parameters and TTL based on performance and error patterns.
 - Implement fallback or alerting for exhausted retries.
 
+## Deprecation Notice
+- The retry logic implementation introduced in WebhookDispatcher may alter how webhook failures are handled compared to previous versions.
+- This change introduces retries with exponential backoff and additional logging.
+- Users should review and update their webhook integrations accordingly.
+- Refer to the [DEPRECATION NOTES](docs/DEPRECATION_NOTES.md) for detailed information.
+
 ## Contributing Guidelines
 - Follow the standard contribution process for any changes made to this repository.
