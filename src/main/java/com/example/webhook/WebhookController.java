@@ -56,4 +56,17 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Webhook validation failed.");
         }
     }
+
+    @PostMapping("/process-event")
+    public ResponseEntity<String> processWebhookEvent(@RequestBody Map<String, Object> event) {
+        // Extract data from the event map
+        String eventType = (String) event.get("eventType");
+        Object eventData = event.get("data");
+
+        // Implement your specific functionality here
+        // For example, process the event based on eventType and eventData
+
+        // Return a success response
+        return ResponseEntity.ok("Webhook event processed successfully.");
+    }
 }
