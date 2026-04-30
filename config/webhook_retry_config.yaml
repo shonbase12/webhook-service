@@ -1,0 +1,8 @@
+# Webhook delivery retry configuration
+MAX_RETRIES: 5
+RETRY_BACKOFF: 2  # backoff time in seconds
+RETRYABLE_ERRORS:
+  - 500  # Internal Server Error
+  - 502  # Bad Gateway
+  - 503  # Service Unavailable
+  - 504  # Gateway Timeout
