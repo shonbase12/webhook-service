@@ -31,4 +31,26 @@ public class WebhookDispatcherTest {
         // Verify sendWebhook was called maxRetries times
         verify(dispatcher, times(3)).sendWebhook(webhook);
     }
+
+    @Test
+    public void testValidateWebhook_NullWebhook() {
+        WebhookDispatcher dispatcher = new WebhookDispatcher(3);
+        assertFalse(dispatcher.validateWebhook(null));
+    }
+
+    @Test
+    public void testValidateWebhook_EmptyPayload() {
+        WebhookDispatcher dispatcher = new WebhookDispatcher(3);
+        Webhook webhook = mock(Webhook.class);
+        when(webhook.getPayload()).thenReturn("");
+        assertFalse(dispatcher.validateWebhook(webhook));
+    }
+
+    @Test
+    public void testValidateWebhook_ValidWebhook() {
+        WebhookDispatcher dispatcher = new WebhookDispatcher(3);
+        Webhook webhook = mock(Webhook.class);
+        when(webhook.getPayload()).thenReturn("some payload");
+        assertTrue(dispatcher.validateWebhook(webhook));
+    }
 }
