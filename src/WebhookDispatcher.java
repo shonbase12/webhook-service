@@ -14,7 +14,11 @@ public class WebhookDispatcher {
                 // Code to send webhook...
                 success = true; // Assuming send is successful
             } catch (Exception e) {
-                logger.error("Failed to send webhook on attempt {}: {}", retryCount + 1, e.getMessage());
+                if (isRedisException(e)) {
+                    logger.error("Redis error on attempt {}: {}", retryCount + 1, e.getMessage());
+                } else {
+                    logger.error("Failed to send webhook on attempt {}: {}", retryCount + 1, e.getMessage());
+                }
                 retryCount++;
                 if (retryCount < MAX_RETRIES) {
                     // Exponential backoff
@@ -29,5 +33,11 @@ public class WebhookDispatcher {
                 }
             }
         }
+    }
+
+    private boolean isRedisException(Exception e) {
+        // Placeholder method to detect Redis exceptions
+        // Replace with actual Redis exception class checks
+        return e.getClass().getSimpleName().contains("Redis");
     }
 }
