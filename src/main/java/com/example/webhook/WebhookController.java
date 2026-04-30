@@ -110,4 +110,22 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to handle new webhook event.");
         }
     }
+
+    @DeleteMapping("/deactivate")
+    public ResponseEntity<String> deactivateWebhook(@RequestBody Map<String, String> request) {
+        String webhookId = request.get("webhookId");
+        String reason = request.get("reason");
+
+        try {
+            boolean deactivated = webhookDispatcher.deactivateWebhook(webhookId, reason);
+            if (deactivated) {
+                return ResponseEntity.ok("Webhook deactivated successfully.");
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Webhook not found.");
+            }
+        } catch (Exception e) {
+            // Log the exception (logging code not shown here)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to deactivate webhook.");
+        }
+    }
 }
