@@ -44,4 +44,16 @@ public class WebhookController {
 
         return ResponseEntity.ok("Notification received successfully.");
     }
+
+    @PostMapping("/validate")
+    public ResponseEntity<String> validateWebhook(@RequestBody Webhook webhook) {
+        // Add your validation logic here
+        boolean isValid = webhookDispatcher.validateWebhook(webhook);
+
+        if (isValid) {
+            return ResponseEntity.ok("Webhook is valid.");
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Webhook validation failed.");
+        }
+    }
 }
