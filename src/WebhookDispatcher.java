@@ -105,6 +105,36 @@ public class WebhookDispatcher {
         });
     }
 
+    public void dispatchUpdateWebhook(Webhook webhook, String idempotencyKey) {
+        // Validate idempotency key
+        if (!validateIdempotencyKey(idempotencyKey)) {
+            logger.warning("Invalid idempotency key. Aborting update dispatch.");
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            if (circuitOpen.get()) {
+                logger.warning("Circuit breaker is open. Aborting update dispatch.");
+                return;
+            }
+
+            // Here, add the logic to update the webhook
+            try {
+                logger.info("Preparing to update webhook: " + webhook);
+                // Placeholder for update logic
+                // For example, send updated webhook or update in DB
+                sendWebhookWithTimeout(webhook);
+                logger.info("Webhook updated successfully.");
+                idempotencyStore.put(idempotencyKey, "updated");
+                scheduleEviction(idempotencyKey);
+                resetCircuitBreaker();
+            } catch (Exception e) {
+                logger.severe("Failed to update webhook: " + e.getMessage());
+                // Handle retries similarly as dispatchWebhook or adapt as needed
+            }
+        });
+    }
+
     private void scheduleEviction(String idempotencyKey) {
         ScheduledFuture<?> previousTask = evictionTasks.put(idempotencyKey, scheduler.schedule(() -> {
             idempotencyStore.remove(idempotencyKey);
