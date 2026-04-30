@@ -110,4 +110,20 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to handle new webhook event.");
         }
     }
+
+    @PostMapping("/custom-action")
+    public ResponseEntity<String> handleCustomAction(@RequestBody Map<String, String> request) {
+        String data = request.get("data");
+        String type = request.get("type");
+
+        // Implement the logic to process the data and perform action based on type
+        try {
+            // Example: Trigger a specific webhook action based on the type
+            webhookDispatcher.dispatchCustomWebhookAction(type, data);
+            return ResponseEntity.status(HttpStatus.CREATED).body("Custom action processed successfully.");
+        } catch (Exception e) {
+            // Log the exception (logging not shown here)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process custom action.");
+        }
+    }
 }
