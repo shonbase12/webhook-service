@@ -1,7 +1,10 @@
 public class WebhookService {
 
+    private final WebhookDispatcher webhookDispatcher;
+
     public WebhookService() {
-        // Initialize any resources or dependencies here
+        // Initialize WebhookDispatcher with a default maxRetries value, e.g., 3
+        this.webhookDispatcher = new WebhookDispatcher(3);
     }
 
     /**
@@ -9,7 +12,9 @@ public class WebhookService {
      * @param webhook the webhook to register
      */
     public void registerWebhook(Object webhook) {
-        // Implementation for registering a webhook
+        // Implement registration logic here
+        log("Registering webhook: " + webhook);
+        // Possibly store the webhook in a data store
     }
 
     /**
@@ -18,7 +23,9 @@ public class WebhookService {
      * @param event the event data
      */
     public void dispatchWebhook(Object webhook, Object event) {
-        // Implementation for dispatching webhook event
+        log("Dispatching webhook: " + webhook + " with event: " + event);
+        // Use WebhookDispatcher to dispatch
+        webhookDispatcher.dispatchWebhook((Webhook) webhook, event.toString());
     }
 
     /**
@@ -28,7 +35,34 @@ public class WebhookService {
      * @param retryCount number of retry attempts
      */
     public void retryWebhook(Object webhook, Object event, int retryCount) {
-        // Implementation for retrying webhook dispatch
+        log("Retrying webhook dispatch: " + webhook + " attempt: " + retryCount);
+        // Implement retry logic, possibly by re-dispatching
+        for (int i = 0; i < retryCount; i++) {
+            webhookDispatcher.dispatchWebhook((Webhook) webhook, event.toString());
+        }
+    }
+
+    /**
+     * Dispatch a new webhook.
+     * @param newWebhook the new webhook to dispatch
+     * @param idempotencyKey the idempotency key for the webhook
+     */
+    public void dispatchNewWebhook(NewWebhook newWebhook, String idempotencyKey) {
+        log("Dispatching new webhook: " + newWebhook);
+        // Assuming NewWebhook can be converted to Webhook for dispatching
+        Webhook webhook = convertNewWebhookToWebhook(newWebhook);
+        webhookDispatcher.dispatchWebhook(webhook, idempotencyKey);
+    }
+
+    /**
+     * Convert NewWebhook to Webhook.
+     * @param newWebhook the new webhook
+     * @return converted Webhook
+     */
+    private Webhook convertNewWebhookToWebhook(NewWebhook newWebhook) {
+        // Implement conversion logic here
+        // Placeholder implementation
+        return new Webhook(newWebhook.getPayload());
     }
 
     /**
@@ -36,7 +70,6 @@ public class WebhookService {
      * @param message the log message
      */
     public void log(String message) {
-        // Implementation for logging webhook operations
         System.out.println("WebhookService log: " + message);
     }
 
