@@ -126,4 +126,16 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process custom action.");
         }
     }
+
+    @PostMapping("/receive-event")
+    public ResponseEntity<String> receiveWebhookEvent(@RequestBody Map<String, Object> event) {
+        try {
+            // Process the event using the webhookDispatcher
+            webhookDispatcher.processWebhookEvent(event);
+            return ResponseEntity.ok("Webhook event received and processed successfully.");
+        } catch (Exception e) {
+            // Log the exception (logging not shown here)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to process webhook event.");
+        }
+    }
 }
