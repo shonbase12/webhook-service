@@ -4,6 +4,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 public class WebhookDispatcher {
     private static final Logger logger = Logger.getLogger(WebhookDispatcher.class.getName());
@@ -11,8 +15,12 @@ public class WebhookDispatcher {
     private static final long INITIAL_BACKOFF = 1000; // 1 second
     private static final long MAX_BACKOFF = 30000; // 30 seconds max backoff
     private static final long TIMEOUT = 5000; // 5 seconds timeout for sending webhook
-    private Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
-    private Random random = new Random();
+    private static final long IDEMPOTENCY_KEY_TTL = 3600_000; // 1 hour TTL for idempotency keys
+
+    private final Map<String, String> idempotencyStore = new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> evictionTasks = new ConcurrentHashMap<>();
+    private final Random random = new Random();
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // Constructor with dynamic maxRetries
     public WebhookDispatcher(int maxRetries) {
@@ -34,6 +42,7 @@ public class WebhookDispatcher {
                     sendWebhookWithTimeout(webhook);
                     logger.info("Webhook dispatched successfully.");
                     idempotencyStore.put(idempotencyKey, "sent");
+                    scheduleEviction(idempotencyKey);
                     return;
                 } catch (SpecificException e) {
                     logger.warning("Specific exception occurred: " + e.getMessage());
@@ -61,10 +70,24 @@ public class WebhookDispatcher {
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     logger.severe("Thread interrupted during backoff: " + ie.getMessage());
+                    return; // Abort retries if interrupted
                 }
             }
             logger.severe("Max retries reached. Failed to dispatch webhook: " + webhook);
         });
+    }
+
+    private void scheduleEviction(String idempotencyKey) {
+        // Cancel previous eviction if exists
+        ScheduledFuture<?> previousTask = evictionTasks.put(idempotencyKey, scheduler.schedule(() -> {
+            idempotencyStore.remove(idempotencyKey);
+            evictionTasks.remove(idempotencyKey);
+            logger.info("Evicted idempotency key from store: " + idempotencyKey);
+        }, IDEMPOTENCY_KEY_TTL, TimeUnit.MILLISECONDS));
+
+        if (previousTask != null) {
+            previousTask.cancel(false);
+        }
     }
 
     private void sendWebhookWithTimeout(Webhook webhook) throws SpecificException, TimeoutException {
