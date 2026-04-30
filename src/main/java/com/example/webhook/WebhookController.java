@@ -87,4 +87,15 @@ public class WebhookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to handle specific webhook action.");
         }
     }
+
+    @PutMapping("/update")
+    public ResponseEntity<String> updateWebhook(@RequestBody Webhook webhook, @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
+        try {
+            webhookDispatcher.dispatchUpdateWebhook(webhook, idempotencyKey);
+            return ResponseEntity.ok("Webhook updated successfully.");
+        } catch (Exception e) {
+            // Log the exception
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to update webhook.");
+        }
+    }
 }
