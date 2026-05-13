@@ -1,71 +1,49 @@
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
- * Improved LoggerConfig for asynchronous and structured logging with context support.
+ * Enhanced LoggerConfig for asynchronous and structured logging with context and thread pool support.
+ * This enforces observability best practices with consistent logging context propagation.
  */
 public class LoggerConfig {
     private static final Logger logger = LoggerFactory.getLogger(LoggerConfig.class);
+    private static final ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
-    /**
-     * Logs an info message asynchronously with optional context data.
-     * @param message the log message
-     * @param traceId optional trace ID for distributed tracing
-     * @param userId optional user ID for context
-     */
+    private static void logAsync(Runnable logAction, String traceId, String userId) {
+        executor.submit(() -> {
+            if (traceId != null) MDC.put("traceId", traceId);
+            if (userId != null) MDC.put("userId", userId);
+            try {
+                logAction.run();
+            } finally {
+                MDC.clear();
+            }
+        });
+    }
+
     public static void logInfoAsync(String message, String traceId, String userId) {
-        new Thread(() -> {
-            if (traceId != null) MDC.put("traceId", traceId);
-            if (userId != null) MDC.put("userId", userId);
-            logger.info(message);
-            MDC.clear();
-        }).start();
+        logAsync(() -> logger.info(message), traceId, userId);
     }
 
-    /**
-     * Logs an error message asynchronously with optional context data.
-     * @param message the log message
-     * @param traceId optional trace ID for distributed tracing
-     * @param userId optional user ID for context
-     * @param throwable optional exception
-     */
     public static void logErrorAsync(String message, String traceId, String userId, Throwable throwable) {
-        new Thread(() -> {
-            if (traceId != null) MDC.put("traceId", traceId);
-            if (userId != null) MDC.put("userId", userId);
-            logger.error(message, throwable);
-            MDC.clear();
-        }).start();
+        logAsync(() -> logger.error(message, throwable), traceId, userId);
     }
 
-    /**
-     * Logs a debug message asynchronously with optional context data.
-     * @param message the log message
-     * @param traceId optional trace ID for distributed tracing
-     * @param userId optional user ID for context
-     */
     public static void logDebugAsync(String message, String traceId, String userId) {
-        new Thread(() -> {
-            if (traceId != null) MDC.put("traceId", traceId);
-            if (userId != null) MDC.put("userId", userId);
-            logger.debug(message);
-            MDC.clear();
-        }).start();
+        logAsync(() -> logger.debug(message), traceId, userId);
+    }
+
+    public static void logWarnAsync(String message, String traceId, String userId) {
+        logAsync(() -> logger.warn(message), traceId, userId);
     }
 
     /**
-     * Logs a warn message asynchronously with optional context data.
-     * @param message the log message
-     * @param traceId optional trace ID for distributed tracing
-     * @param userId optional user ID for context
+     * Shutdown the executor service gracefully.
      */
-    public static void logWarnAsync(String message, String traceId, String userId) {
-        new Thread(() -> {
-            if (traceId != null) MDC.put("traceId", traceId);
-            if (userId != null) MDC.put("userId", userId);
-            logger.warn(message);
-            MDC.clear();
-        }).start();
+    public static void shutdown() {
+        executor.shutdown();
     }
 }
