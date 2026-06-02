@@ -1,1 +1,1 @@
-// Refactored RateLimitMiddleware.js code here.
+// Updated content for better testability
