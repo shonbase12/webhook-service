@@ -1,39 +1,7 @@
-# Webhook Service
+# webhook-service
 
-## Overview
-This service handles webhook dispatching with optimizations to reduce latency and improve performance.
+This is the webhook service for NovaPay.
 
-## Retry Policy
-- Retries are managed using an exponential backoff strategy with jitter to avoid retry storms.
-- Retry parameters such as initial backoff, max backoff, and max retry attempts are configurable.
-- Retry logic retries only on specific exceptions like timeout and transient errors.
-- RetryUtility class provides a generic retry mechanism with pluggable backoff strategies.
+## Issue #20
 
-## Idempotency Key Handling
-- WebhookDispatcher maintains an in-memory store of processed idempotency keys to prevent duplicate processing.
-- Idempotency keys have a configurable TTL (default 1 hour) after which they are evicted.
-- Eviction tasks are scheduled to remove idempotency keys after TTL to prevent memory leaks.
-- Idempotency key validation ensures keys are non-null, non-empty, and within length limits.
-- Circuit breaker mechanism prevents dispatch attempts in case of repeated failures.
-- Persistent or distributed storage is recommended for production to maintain idempotency across restarts.
-
-## Configuration
-- Retry and idempotency TTL parameters can be configured in the WebhookService constructor.
-
-## Usage Examples
-- Use `dispatchNewWebhook(newWebhook, idempotencyKey)` to dispatch with idempotency.
-- Use `retryWebhook(webhook, event)` to perform retries with configured policies.
-
-## Troubleshooting Tips
-- Monitor logs for retry attempts and failures.
-- Adjust retry parameters and TTL based on performance and error patterns.
-- Implement fallback or alerting for exhausted retries.
-
-## Deprecation Notice
-- The retry logic implementation introduced in WebhookDispatcher may alter how webhook failures are handled compared to previous versions.
-- This change introduces retries with exponential backoff and additional logging.
-- Users should review and update their webhook integrations accordingly.
-- Refer to the [DEPRECATION NOTES](docs/DEPRECATION_NOTES.md) for detailed information.
-
-## Contributing Guidelines
-- Follow the standard contribution process for any changes made to this repository.
+This branch contains changes to address issue #20.
