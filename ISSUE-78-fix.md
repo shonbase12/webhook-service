@@ -1,0 +1,1 @@
+Resolved issue #78 by implementing the necessary changes.
